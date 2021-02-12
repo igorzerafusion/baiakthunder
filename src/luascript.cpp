@@ -2552,8 +2552,6 @@ void LuaScriptInterface::registerFunctions()
 	// Combat
 	registerClass("Combat", "", LuaScriptInterface::luaCombatCreate);
 	registerMetaMethod("Combat", "__eq", LuaScriptInterface::luaUserdataCompare);
-	registerMetaMethod("Combat", "__gc", LuaScriptInterface::luaCombatDelete);
-	registerMethod("Combat", "delete", LuaScriptInterface::luaCombatDelete);
 
 	registerMethod("Combat", "setParameter", LuaScriptInterface::luaCombatSetParameter);
 	registerMethod("Combat", "setFormula", LuaScriptInterface::luaCombatSetFormula);
@@ -11625,22 +11623,9 @@ int LuaScriptInterface::luaItemTypeHasSubType(lua_State* L)
 int LuaScriptInterface::luaCombatCreate(lua_State* L)
 {
 	// Combat()
-	Combat* combat = g_luaEnvironment.createCombatObject(getScriptEnv()->getScriptInterface());
-	combat->incrementReferenceCounter();
-
-	pushUserdata<Combat>(L, combat);
+	pushUserdata<Combat>(L, g_luaEnvironment.createCombatObject(getScriptEnv()->getScriptInterface()));
 	setMetatable(L, -1, "Combat");
 	return 1;
-}
-
-int LuaScriptInterface::luaCombatDelete(lua_State* L)
-{
-	Combat** combatPtr = getRawUserdata<Combat>(L, 1);
-	if (combatPtr && *combatPtr) {
-		(*combatPtr)->decrementReferenceCounter();
-		*combatPtr = nullptr;
-	}
-	return 0;
 }
 
 int LuaScriptInterface::luaCombatSetParameter(lua_State* L)
@@ -15996,8 +15981,6 @@ Combat* LuaEnvironment::getCombatObject(uint32_t id) const
 Combat* LuaEnvironment::createCombatObject(LuaScriptInterface* interface)
 {
 	Combat* combat = new Combat;
-	combat->incrementReferenceCounter();
-	
 	combatMap[++lastCombatId] = combat;
 	combatIdMap[interface].push_back(lastCombatId);
 	return combat;
@@ -16013,7 +15996,7 @@ void LuaEnvironment::clearCombatObjects(LuaScriptInterface* interface)
 	for (uint32_t id : it->second) {
 		auto itt = combatMap.find(id);
 		if (itt != combatMap.end()) {
-			itt->second->decrementReferenceCounter();
+			delete itt->second;
 			combatMap.erase(itt);
 		}
 	}
